@@ -2,10 +2,6 @@
 using System.Windows.Forms;
 using System.Globalization;
 using Microsoft.Speech.Recognition;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Threading;
 
 namespace God
 {
@@ -13,15 +9,10 @@ namespace God
     {
         const string culture = "pt-BR";
 
-        private SpeechRecognitionEngine SpeechRecognitionEngine;
-
         public App()
         {
-            SpeechRecognitionEngine = new SpeechRecognitionEngine(new CultureInfo(culture));
             InitializeComponent();
         }
-
-
 
         private void Start(object sender, EventArgs e)
         {
@@ -37,6 +28,8 @@ namespace God
 
         private void SpeechRecognition_Init()
         {
+            var SpeechRecognitionEngine = new SpeechRecognitionEngine(new CultureInfo(culture));
+
             // Pega o recurso de audio padrão do sistema
             SpeechRecognitionEngine.SetInputToDefaultAudioDevice();
 
@@ -47,36 +40,22 @@ namespace God
             SpeechRecognitionEngine.AudioLevelUpdated += SpeechRecognitionEngine_AudioLevelUpdated;
             // Quando não reconhecer o audio
             SpeechRecognitionEngine.SpeechRecognitionRejected += SpeechRecognitionEngine_SpeechRecognitionRejected;
-            // Quando finaliza um reconhecimento
-            SpeechRecognitionEngine.RecognizeCompleted += SpeechRecognitionEngine_RecognizeCompleted;
 
-            SpeechRecognitionEngine.LoadGrammar(Gramaticas.HoraAtual());
-            SpeechRecognitionEngine.LoadGrammar(CriaGramaticaData());
+            // Carrega gramatica
+            var choices = new Choices();
+            choices.Add(Gramaticas.HoraAtual.ToArray());
+            choices.Add(Gramaticas.DataAtual.ToArray());
+
+            var builder = new GrammarBuilder();
+            builder.Append(choices);
+
+            var grammar = new Grammar(builder);
+            grammar.Name = "System";
+
+            SpeechRecognitionEngine.LoadGrammar(grammar);
 
             // Inicia o reconhecimento
             SpeechRecognitionEngine.RecognizeAsync(RecognizeMode.Multiple);
-        }
-
-        private Grammar CriaGramaticaData()
-        {
-            // Escolhas
-            var commandos = new Choices();
-            commandos.Add(Gramaticas.Data.ToArray());
-            
-            var builder = new GrammarBuilder(commandos);
-
-            var grammar = new Grammar(builder)
-            {
-                Name = "Gram_Data"
-            };
-
-            return grammar;
-        }
-
-
-        private void SpeechRecognitionEngine_RecognizeCompleted(object sender, RecognizeCompletedEventArgs e)
-        {
-            Console.WriteLine("RecognizeCompleted");
         }
 
         private void SpeechRecognitionEngine_SpeechRecognitionRejected(object sender, SpeechRecognitionRejectedEventArgs e)
@@ -91,16 +70,23 @@ namespace God
 
         private void SpeechRecognitionEngine_SpeechRecognized(object sender, SpeechRecognizedEventArgs e)
         {
+            var nomeGramatica = e.Result.Grammar.Name;
             var frase = e.Result.Text;
 
-            Console.WriteLine("Recognized text: " + frase);
+            Console.WriteLine(string.Format("Fala reconhecida: {0}/{1}", frase, nomeGramatica));
 
-            if (e.Result.Grammar.Name == Gramaticas.NomeGramatica)
+            switch (nomeGramatica)
             {
-                if (Gramaticas.Hora.Any(i => i == frase))
-                    Execute.MostraHorasHoje();
-                else if (Gramaticas.Data.Any(i => i == frase))
-                    Execute.MostraDataHoje();
+                case "System":
+                    if (Gramaticas.HoraAtual.Contains(frase))
+                    {
+                        Execute.MostraHorasHoje();
+                    }
+                    else if (Gramaticas.DataAtual.Contains(frase))
+                    {
+                        Execute.MostraDataHoje();
+                    }
+                    break;
             }
         }
 
